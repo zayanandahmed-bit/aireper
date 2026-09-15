@@ -1,0 +1,4 @@
+# Local-only dev server used to preview this site while working on it —
+# not needed once it's hosted on GitHub Pages.
+nocache_server.py
+.DS_Store

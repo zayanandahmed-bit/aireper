@@ -3,3 +3,4 @@ dist/
 .DS_Store
 nocache_server.py
 *.local
+.gh-pages/

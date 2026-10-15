@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="footer-grid">
         <div>
           <Link to="/" className="logo">
-            <span>AI</span>REPER
+            DAYSBACK<span>.AI</span>
           </Link>
           <p className="footer-blurb">
             Custom AI agents &amp; automations for growing businesses. Built around your
@@ -34,7 +34,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        © 2026 AIREPER. Custom AI agents &amp; automations for growing businesses.
+        © 2026 DAYSBACK.AI. Custom AI agents &amp; automations for growing businesses.
       </div>
     </footer>
   );

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 const TILES = [
-  { icon: '✉', style: undefined, title: 'Email us', value: 'hello@aireper.example' },
+  { icon: '✉', style: undefined, title: 'Email us', value: 'hello@daysback.example' },
   {
     icon: '☎',
     style: { background: 'linear-gradient(135deg,#ff3d8a,#ffb020)' },

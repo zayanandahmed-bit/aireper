@@ -16,11 +16,11 @@ import { useCardTilt, useScrollReveal } from './hooks/useSiteEffects.js';
 const Background = lazy(() => import('./components/Background.jsx'));
 
 const TITLES = {
-  '/': 'AIREPER | Custom AI Agents & Automations',
-  '/services': 'Services | AIREPER',
-  '/reviews': 'Reviews | AIREPER',
-  '/about': 'About | AIREPER',
-  '/contact': 'Contact | AIREPER',
+  '/': 'DAYSBACK.AI | Custom AI Agents & Automations',
+  '/services': 'Services | DAYSBACK.AI',
+  '/reviews': 'Reviews | DAYSBACK.AI',
+  '/about': 'About | DAYSBACK.AI',
+  '/contact': 'Contact | DAYSBACK.AI',
 };
 
 export default function App() {

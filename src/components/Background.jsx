@@ -6,6 +6,15 @@ import * as THREE from 'three';
 // camera dolly. Everything it creates is torn down on unmount so a remount
 // (React StrictMode in dev, or a future layout change) never leaks a second
 // WebGL context or a second animation loop.
+// The first render is the expensive moment (shader compile, GPU upload) and
+// blocks the main thread for a few hundred ms. The intro waits for this signal
+// before it starts moving, so that freeze lands on a still screen instead of
+// in the middle of the letter animation.
+function signalReady() {
+  window.__bgReady = true;
+  window.dispatchEvent(new Event('bg-ready'));
+}
+
 export default function Background() {
   const canvasRef = useRef(null);
 
@@ -13,8 +22,18 @@ export default function Background() {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    } catch {
+      // No WebGL (old device, disabled GPU): skip the decoration, but still
+      // tell the intro it can go, or it would wait for its fallback timer.
+      signalReady();
+      return undefined;
+    }
+    // 1.5 rather than 2: on retina screens that is ~45% fewer pixels to draw every
+    // frame, and thin points and lines look the same at that density.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     const scene = new THREE.Scene();
@@ -167,6 +186,7 @@ export default function Background() {
     // nobody can see: it competes with whatever the user switched to.
     let animating = true;
     let disposed = false;
+    let firstFrameDone = false;
     let frameId = 0;
 
     function animate() {
@@ -194,6 +214,10 @@ export default function Background() {
       camera.position.y = -Math.min(scrollY * 0.0008, 1.2);
 
       renderer.render(scene, camera);
+      if (!firstFrameDone) {
+        firstFrameDone = true;
+        signalReady();
+      }
     }
 
     const onVisibility = () => {

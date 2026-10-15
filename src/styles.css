@@ -607,6 +607,11 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 }
 
 /* ---------- opening sequence ---------- */
+/* Everything here animates only transform and opacity. Those run on the GPU
+   compositor, so they stay at full frame rate even while the WebGL scene is
+   spinning up underneath. The first version animated clip-path and
+   filter: blur(), which make the browser repaint the full screen every frame
+   and showed up as stutter right at the moment the curtain lifted. */
 .intro {
   position: fixed;
   inset: 0;
@@ -617,12 +622,20 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   justify-content: center;
   gap: 1.4rem;
   background: var(--bg);
-  /* lift away like a curtain, bottom edge first */
-  clip-path: inset(0 0 0 0);
-  transition: clip-path 0.8s cubic-bezier(.76,0,.24,1);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  transition: transform 1.1s cubic-bezier(.77,0,.18,1);
 }
-.intro-out { clip-path: inset(0 0 100% 0); }
-.intro-out .intro-mark { transform: translateY(-40px); opacity: 0; }
+/* soft shadow on the curtain's bottom edge so it reads as a lifting sheet */
+.intro::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -60px;
+  height: 60px;
+  background: linear-gradient(to bottom, rgba(108,60,255,0.10), transparent);
+  pointer-events: none;
+}
+.intro-out { transform: translate3d(0, -100%, 0); }
 
 .intro-mark {
   font-family: 'Space Grotesk', sans-serif;
@@ -633,11 +646,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   display: flex;
   overflow: hidden;
   padding: 0.1em 0.05em;
-  transition: transform 0.6s cubic-bezier(.76,0,.24,1), opacity 0.5s ease;
+  will-change: transform, opacity;
+  transition: transform 0.9s cubic-bezier(.65,0,.35,1), opacity 0.6s ease;
 }
+/* the wordmark drifts up a little slower than the curtain, which gives the
+   lift a sense of depth instead of everything moving as one flat block */
+.intro-out .intro-mark { transform: translate3d(0, -24px, 0); opacity: 0; }
+
 .intro-letter {
   display: inline-block;
-  animation: intro-rise 0.7s cubic-bezier(.16,1,.3,1) both;
+  will-change: transform, opacity;
+  animation: intro-rise 1s cubic-bezier(.22,1,.36,1) both;
 }
 .intro-ai {
   display: inline-block;
@@ -645,7 +664,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: intro-pop 0.6s cubic-bezier(.34,1.56,.64,1) 0.6s both;
+  will-change: transform, opacity;
+  animation: intro-pop 0.9s cubic-bezier(.22,1,.36,1) 0.55s both;
 }
 .intro-bar {
   width: min(260px, 60vw);
@@ -653,17 +673,24 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   border-radius: 3px;
   background: linear-gradient(90deg, var(--accent), var(--accent2), var(--sun));
   transform-origin: left;
-  animation: intro-bar 1.1s cubic-bezier(.65,0,.35,1) 0.25s both;
+  will-change: transform;
+  animation: intro-bar 1.2s cubic-bezier(.65,0,.35,1) 0.2s both;
+  transition: opacity 0.4s ease;
 }
-.intro-out .intro-bar { opacity: 0; transition: opacity 0.3s; }
+.intro-out .intro-bar { opacity: 0; }
+
+/* held at their starting frame until the 3D background is ready */
+.intro-wait .intro-letter,
+.intro-wait .intro-ai,
+.intro-wait .intro-bar { animation-play-state: paused; }
 
 @keyframes intro-rise {
-  from { transform: translateY(110%) rotate(6deg); opacity: 0; }
-  to   { transform: translateY(0) rotate(0); opacity: 1; }
+  from { transform: translate3d(0, 105%, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0); opacity: 1; }
 }
 @keyframes intro-pop {
-  from { transform: scale(0.4) translateY(20%); opacity: 0; }
-  to   { transform: scale(1) translateY(0); opacity: 1; }
+  from { transform: translate3d(0, 30%, 0) scale(0.85); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
 }
 @keyframes intro-bar {
   from { transform: scaleX(0); }
@@ -679,36 +706,42 @@ html:not(.intro-done) .nav,
 html:not(.intro-done) #bg-canvas,
 html:not(.intro-done) .scroll-hint { opacity: 0; }
 
-.intro-done .nav { animation: nav-drop 0.8s cubic-bezier(.16,1,.3,1) 0.15s backwards; }
-.intro-done #bg-canvas { animation: fade-in 1.6s ease 0.1s backwards; }
+/* 'backwards' fill so nothing lingers once an entrance ends: a leftover
+   transform on the fixed .nav would become the containing block for the
+   mobile menu. */
+.intro-done .nav { animation: nav-in 1s cubic-bezier(.22,1,.36,1) 0.35s backwards; }
+.intro-done #bg-canvas { animation: fade-in 1.8s ease 0.1s backwards; }
+.intro-done .scroll-hint { animation: fade-in 1.2s ease 1s backwards; }
 
 /* Animate the hero's children, not .hero-content itself: the mouse parallax
-   writes an inline transform on .hero-content and would fight an animation. */
+   writes an inline transform on .hero-content and would fight an animation.
+   Delays are timed against the curtain: it uncovers the page from the
+   bottom up, so the hero starts moving just as the curtain clears it. */
 .intro-done .hero-content > * {
-  animation: hero-in 1s cubic-bezier(.16,1,.3,1) backwards;
+  animation: hero-in 1.3s cubic-bezier(.22,1,.36,1) backwards;
 }
-.intro-done .hero-content > :nth-child(1) { animation-delay: 0s; }
-.intro-done .hero-content > :nth-child(2) { animation-delay: 0.08s; }
-.intro-done .hero-content > :nth-child(3) { animation-delay: 0.2s; }
-.intro-done .hero-content > :nth-child(4) { animation-delay: 0.32s; }
-.intro-done .hero-content > :nth-child(5) { animation-delay: 0.44s; }
-.intro-done .hero-stats > div { animation: hero-in 0.9s cubic-bezier(.16,1,.3,1) backwards; }
-.intro-done .hero-stats > div:nth-child(1) { animation-delay: 0.70s; }
-.intro-done .hero-stats > div:nth-child(2) { animation-delay: 0.78s; }
-.intro-done .hero-stats > div:nth-child(3) { animation-delay: 0.86s; }
-.intro-done .hero-stats > div:nth-child(4) { animation-delay: 0.94s; }
+.intro-done .hero-content > :nth-child(1) { animation-delay: 0.30s; }
+.intro-done .hero-content > :nth-child(2) { animation-delay: 0.38s; }
+.intro-done .hero-content > :nth-child(3) { animation-delay: 0.50s; }
+.intro-done .hero-content > :nth-child(4) { animation-delay: 0.60s; }
+.intro-done .hero-content > :nth-child(5) { animation-delay: 0.70s; }
+.intro-done .hero-stats > div { animation: hero-in 1.2s cubic-bezier(.22,1,.36,1) backwards; }
+.intro-done .hero-stats > div:nth-child(1) { animation-delay: 0.78s; }
+.intro-done .hero-stats > div:nth-child(2) { animation-delay: 0.84s; }
+.intro-done .hero-stats > div:nth-child(3) { animation-delay: 0.90s; }
+.intro-done .hero-stats > div:nth-child(4) { animation-delay: 0.96s; }
 
 @keyframes hero-in {
-  from { opacity: 0; transform: translateY(36px); filter: blur(8px); }
-  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translate3d(0, 28px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-@keyframes nav-drop {
-  from { opacity: 0; transform: translateY(-100%); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes nav-in {
+  from { opacity: 0; transform: translate3d(0, -16px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .intro-done .nav, .intro-done #bg-canvas,
+  .intro-done .nav, .intro-done #bg-canvas, .intro-done .scroll-hint,
   .intro-done .hero-content > *, .intro-done .hero-stats > div { animation: none; }
 }

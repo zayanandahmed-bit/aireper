@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Nav from './components/Nav.jsx';
 import Footer from './components/Footer.jsx';
+import Intro from './components/Intro.jsx';
 import Home from './pages/Home.jsx';
 import Services from './pages/Services.jsx';
 import Reviews from './pages/Reviews.jsx';
@@ -36,6 +37,7 @@ export default function App() {
 
   return (
     <>
+      <Intro />
       <Suspense fallback={null}>
         <Background />
       </Suspense>

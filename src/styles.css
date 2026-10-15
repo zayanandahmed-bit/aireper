@@ -605,3 +605,110 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .about-grid { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- opening sequence ---------- */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  background: var(--bg);
+  /* lift away like a curtain, bottom edge first */
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.8s cubic-bezier(.76,0,.24,1);
+}
+.intro-out { clip-path: inset(0 0 100% 0); }
+.intro-out .intro-mark { transform: translateY(-40px); opacity: 0; }
+
+.intro-mark {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.6rem, 9vw, 5.5rem);
+  letter-spacing: -0.03em;
+  color: var(--fg);
+  display: flex;
+  overflow: hidden;
+  padding: 0.1em 0.05em;
+  transition: transform 0.6s cubic-bezier(.76,0,.24,1), opacity 0.5s ease;
+}
+.intro-letter {
+  display: inline-block;
+  animation: intro-rise 0.7s cubic-bezier(.16,1,.3,1) both;
+}
+.intro-ai {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: intro-pop 0.6s cubic-bezier(.34,1.56,.64,1) 0.6s both;
+}
+.intro-bar {
+  width: min(260px, 60vw);
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--sun));
+  transform-origin: left;
+  animation: intro-bar 1.1s cubic-bezier(.65,0,.35,1) 0.25s both;
+}
+.intro-out .intro-bar { opacity: 0; transition: opacity 0.3s; }
+
+@keyframes intro-rise {
+  from { transform: translateY(110%) rotate(6deg); opacity: 0; }
+  to   { transform: translateY(0) rotate(0); opacity: 1; }
+}
+@keyframes intro-pop {
+  from { transform: scale(0.4) translateY(20%); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes intro-bar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* no scrolling underneath while the curtain is down */
+html.intro-running, html.intro-running body { overflow: hidden; }
+
+/* ---------- hero + chrome entrance, released when the curtain lifts ---------- */
+html:not(.intro-done) .hero-content > *,
+html:not(.intro-done) .nav,
+html:not(.intro-done) #bg-canvas,
+html:not(.intro-done) .scroll-hint { opacity: 0; }
+
+.intro-done .nav { animation: nav-drop 0.8s cubic-bezier(.16,1,.3,1) 0.15s backwards; }
+.intro-done #bg-canvas { animation: fade-in 1.6s ease 0.1s backwards; }
+
+/* Animate the hero's children, not .hero-content itself: the mouse parallax
+   writes an inline transform on .hero-content and would fight an animation. */
+.intro-done .hero-content > * {
+  animation: hero-in 1s cubic-bezier(.16,1,.3,1) backwards;
+}
+.intro-done .hero-content > :nth-child(1) { animation-delay: 0s; }
+.intro-done .hero-content > :nth-child(2) { animation-delay: 0.08s; }
+.intro-done .hero-content > :nth-child(3) { animation-delay: 0.2s; }
+.intro-done .hero-content > :nth-child(4) { animation-delay: 0.32s; }
+.intro-done .hero-content > :nth-child(5) { animation-delay: 0.44s; }
+.intro-done .hero-stats > div { animation: hero-in 0.9s cubic-bezier(.16,1,.3,1) backwards; }
+.intro-done .hero-stats > div:nth-child(1) { animation-delay: 0.70s; }
+.intro-done .hero-stats > div:nth-child(2) { animation-delay: 0.78s; }
+.intro-done .hero-stats > div:nth-child(3) { animation-delay: 0.86s; }
+.intro-done .hero-stats > div:nth-child(4) { animation-delay: 0.94s; }
+
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(36px); filter: blur(8px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes nav-drop {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-done .nav, .intro-done #bg-canvas,
+  .intro-done .hero-content > *, .intro-done .hero-stats > div { animation: none; }
+}

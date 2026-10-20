@@ -157,7 +157,7 @@ export default function VoiceDemo() {
             {finished && (
               <div className="call-after">
                 <span className="call-who">What happened next, automatically</span>
-                <ul>{call.after.map((a) => <li key={a}>✓ {a}</li>)}</ul>
+                <ul>{call.after.map((a) => <li key={a}>{a}</li>)}</ul>
               </div>
             )}
           </div>

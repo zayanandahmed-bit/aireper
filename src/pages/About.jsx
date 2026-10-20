@@ -42,7 +42,7 @@ export default function About() {
             <p className="eyebrow">Our story</p>
             <h2>Built by automators, for businesses that want their time back</h2>
             <p>
-              DAYSBACK.AI started with a simple observation: most businesses lose hours every day
+              DAYSBACK.SI started with a simple observation: most businesses lose hours every day
               to work a machine should be doing, chasing leads, answering the same questions,
               copying data between tools.
             </p>

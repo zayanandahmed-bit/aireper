@@ -16,7 +16,7 @@ export default function Nav() {
     <header className="nav">
       <div className="nav-inner">
         <Link to="/" className="logo" onClick={close}>
-          DAYSBACK<span>.AI</span>
+          DAYSBACK<span>.SI</span>
         </Link>
         {/* The open/closed look lives entirely in CSS (.nav-links /
             .nav-links.open) so it can transition smoothly. */}

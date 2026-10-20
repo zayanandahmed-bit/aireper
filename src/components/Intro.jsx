@@ -79,7 +79,7 @@ export default function Intro() {
             {ch}
           </span>
         ))}
-        <span className="intro-ai">.AI</span>
+        <span className="intro-ai">.SI</span>
       </div>
       <div className="intro-bar" />
     </div>

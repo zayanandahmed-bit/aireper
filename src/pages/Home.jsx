@@ -229,7 +229,7 @@ export default function Home() {
       </section>
 
       <CtaBand heading="Ready to get your DaysBack and generate revenue?" button="Let's Map Your Opportunities">
-        Book a 27-minute strategy call.
+        Book a 20-minute strategy call.
       </CtaBand>
     </main>
   );

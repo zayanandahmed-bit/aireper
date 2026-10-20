@@ -107,15 +107,15 @@ export default function Home() {
       <section className="hero">
         <div className="hero-content" ref={heroRef}>
           <p className="eyebrow">AI Automation Studio</p>
-          <h1>
-            We build <span className="grad">custom AI agents</span>
-            <br />
-            that run your business on autopilot
+          <h1 className="hero-h1-long">
+            We find where your business leaks money and wastes days, then we build the AI
+            that fixes it and <span className="grad">gets your days back</span>
           </h1>
           <p className="hero-sub">
-            From lead follow-up to internal ops, we design, build, and deploy AI automations
-            that replace hours of manual work with systems that just run. No templates, no
-            hype. Systems built around how your business actually works.
+            Somewhere in your business, time and money are slipping away, and you're probably
+            too close to see it. At DaysBack, we look at how you actually operate, find the
+            gaps, and build bespoke AI solutions around them so that you focus on growth while
+            our solutions do the heavy-lifting for you.
           </p>
           <div className="hero-actions">
             <Link to="/contact" className="btn btn-primary">
@@ -228,9 +228,8 @@ export default function Home() {
         <Faq items={FAQS} />
       </section>
 
-      <CtaBand heading="Ready to put your business on autopilot?">
-        Book a free 20-minute call. We'll show you exactly where AI can save you the most
-        time, and give you a clear plan.
+      <CtaBand heading="Ready to get your DaysBack and generate revenue?" button="Let's Map Your Opportunities">
+        Book a 27-minute strategy call.
       </CtaBand>
     </main>
   );

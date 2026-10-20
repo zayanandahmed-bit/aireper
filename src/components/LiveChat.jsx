@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 
 // A real AI assistant visitors can talk to, laid out like the chat demo above
-// it so it reads as "now try it yourself". The chat backend (chat-backend/ on
-// Vercel) holds the AI key; its URL is set at build time. Until that backend
+// it so it reads as "now try it yourself". The backend is a Supabase Edge
+// Function (supabase/functions/daysback-chat) that holds the AI key; its full
+// URL is set at build time as VITE_CHAT_URL. Until that backend
 // reports it's ready, the phone shows a clear "opening soon" state with a way
 // to book a call, never a chat that fails when you type into it.
 const CHAT_URL = (import.meta.env.VITE_CHAT_URL || '').replace(/\/+$/, '');
@@ -56,7 +57,7 @@ export default function LiveChat() {
 
   useEffect(() => {
     if (!CHAT_URL) { setReady(false); return; }
-    fetch(CHAT_URL + '/api/chat').then((r) => r.json()).then((d) => setReady(!!d.ready)).catch(() => setReady(false));
+    fetch(CHAT_URL).then((r) => r.json()).then((d) => setReady(!!d.ready)).catch(() => setReady(false));
   }, []);
 
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function LiveChat() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      const res = await fetch(CHAT_URL + '/api/chat', {
+      const res = await fetch(CHAT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: toSend }),

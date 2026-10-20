@@ -1,0 +1,7 @@
+# Only what's needed to deploy the website's chat function.
+project_id = "ajevxwdgmpaakjkffvmf"
+
+[functions.daysback-chat]
+# The website calls this without a Supabase login; the function does its own
+# checks (allowed origins, message limits, rate limit).
+verify_jwt = false

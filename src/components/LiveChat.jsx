@@ -1,8 +1,10 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 
-// The chat backend (chat-backend/ on Vercel) holds the AI key. Its URL is set
-// at build time; without it, or until the backend reports it's ready, the
-// bubble simply doesn't appear, so the site never shows a broken chat.
+// A real AI assistant visitors can talk to, laid out like the chat demo above
+// it so it reads as "now try it yourself". The chat backend (chat-backend/ on
+// Vercel) holds the AI key; its URL is set at build time. Until that backend
+// reports it's ready, the phone shows a clear "opening soon" state with a way
+// to book a call, never a chat that fails when you type into it.
 const CHAT_URL = (import.meta.env.VITE_CHAT_URL || '').replace(/\/+$/, '');
 const STORE_KEY = 'daysback.chat.v1';
 const MAX_KEEP = 24;   // matches the backend's limit; oldest turns are dropped
@@ -43,34 +45,31 @@ function Rich({ text }) {
   ));
 }
 
-export default function ChatWidget() {
-  const [ready, setReady] = useState(false);
-  const [open, setOpen] = useState(false);
+export default function LiveChat() {
+  const [ready, setReady] = useState(null);   // null = checking, false = not connected
   const [messages, setMessages] = useState(load);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const listRef = useRef(null);
-  const inputRef = useRef(null);
   const abortRef = useRef(null);
 
   useEffect(() => {
-    if (!CHAT_URL) return;
-    fetch(CHAT_URL + '/api/chat').then((r) => r.json()).then((d) => setReady(!!d.ready)).catch(() => {});
+    if (!CHAT_URL) { setReady(false); return; }
+    fetch(CHAT_URL + '/api/chat').then((r) => r.json()).then((d) => setReady(!!d.ready)).catch(() => setReady(false));
   }, []);
 
   useEffect(() => {
     try { sessionStorage.setItem(STORE_KEY, JSON.stringify(messages.slice(-MAX_KEEP))); } catch { /* private mode */ }
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, open]);
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
 
-  useEffect(() => { if (open) setTimeout(() => inputRef.current && inputRef.current.focus(), 250); }, [open]);
   useEffect(() => () => abortRef.current && abortRef.current.abort(), []);
 
   const send = async (text) => {
     const content = (text ?? draft).trim().slice(0, 1500);
-    if (!content || busy) return;
+    if (!content || busy || !ready) return;
     setDraft('');
     setError('');
     const history = [...messages, { role: 'user', content }];
@@ -79,7 +78,7 @@ export default function ChatWidget() {
 
     // The greeting is ours, not the model's, so it isn't sent; the backend
     // needs the conversation to start with the visitor.
-    const toSend = history.filter((m) => m !== GREETING && m.content).slice(-MAX_KEEP);
+    const toSend = history.filter((m) => m.content).slice(-MAX_KEEP);
     while (toSend.length && toSend[0].role !== 'user') toSend.shift();
 
     const ctrl = new AbortController();
@@ -121,58 +120,68 @@ export default function ChatWidget() {
     setBusy(false);
   };
 
-  if (!ready) return null;
-
   const fresh = messages.length === 1;
+  const live = ready === true;
 
   return (
-    <div className={'chatw' + (open ? ' open' : '')}>
-      <div className="chatw-panel" role="dialog" aria-label="Chat with the DaysBack assistant" aria-hidden={!open}>
-        <div className="chatw-head">
-          <span className="chatw-avatar">D</span>
-          <div className="chatw-title">
-            <strong>Ask DaysBack</strong>
-            <span>AI assistant · replies instantly</span>
-          </div>
-          <button type="button" className="chatw-icon" onClick={reset} title="Start over" aria-label="Start a new conversation">↺</button>
-          <button type="button" className="chatw-icon" onClick={() => setOpen(false)} aria-label="Close chat">✕</button>
-        </div>
-
-        <div className="chatw-list" ref={listRef} aria-live="polite">
-          {messages.map((m, i) => (
-            <div key={i} className={'chatw-msg ' + m.role}>
-              {m.content ? <Rich text={m.content} /> : <span className="chatw-dots"><i /><i /><i /></span>}
-            </div>
-          ))}
-          {fresh && (
-            <div className="chatw-chips">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} type="button" onClick={() => send(s)}>{s}</button>
-              ))}
-            </div>
-          )}
-          {error && <div className="chatw-error">{error}</div>}
-        </div>
-
-        <form className="chatw-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            value={draft}
-            maxLength={1500}
-            placeholder="Ask about your business…"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          />
-          <button type="submit" disabled={busy || !draft.trim()} aria-label="Send">➤</button>
-        </form>
-        <p className="chatw-foot">AI can make mistakes. For anything important, book a call.</p>
+    <section className="section" id="talk">
+      <div className="section-head">
+        <p className="eyebrow">Try it yourself</p>
+        <h2>Now talk to ours</h2>
+        <p className="sub">This one is real. Tell it about your business and it'll show you what we could automate for you.</p>
       </div>
 
-      <button type="button" className="chatw-launch" onClick={() => setOpen((o) => !o)}
-        aria-label={open ? 'Close chat' : 'Chat with us'} aria-expanded={open}>
-        {open ? '✕' : <><span className="chatw-launch-icon">💬</span><span className="chatw-launch-text">Ask us anything</span></>}
-      </button>
-    </div>
+      <div className="demo">
+        <div className="phone phone-live">
+          <div className="phone-top">
+            <span className="phone-avatar">D</span>
+            <div className="phone-top-text">
+              <div className="phone-name">DaysBack Assistant</div>
+              <div className="phone-status">
+                {busy ? 'typing…' : live ? <><span className="live-dot" />online now</> : ready === null ? 'connecting…' : 'opening soon'}
+              </div>
+            </div>
+            {live && !fresh && (
+              <button type="button" className="phone-reset" onClick={reset} title="Start over" aria-label="Start a new conversation">↺</button>
+            )}
+          </div>
+
+          <div className="phone-chat" ref={listRef} aria-live="polite">
+            {messages.map((m, i) => (
+              <div key={i} className={'bubble ' + (m.role === 'user' ? 'bubble-them live-user' : 'bubble-bot live-bot')}>
+                {m.content ? <Rich text={m.content} /> : <span className="chatw-dots"><i /><i /><i /></span>}
+              </div>
+            ))}
+            {live && fresh && (
+              <div className="live-chips">
+                {SUGGESTIONS.map((sug) => (
+                  <button key={sug} type="button" onClick={() => send(sug)}>{sug}</button>
+                ))}
+              </div>
+            )}
+            {ready === false && (
+              <div className="bubble bubble-note">
+                Our live assistant is opening soon. In the meantime, <a href="/aireper/contact">book a free 20-minute call</a> and we'll answer everything.
+              </div>
+            )}
+            {error && <div className="bubble bubble-note live-error">{error}</div>}
+          </div>
+
+          <form className="live-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
+            <textarea
+              rows={1}
+              value={draft}
+              maxLength={1500}
+              disabled={!live}
+              placeholder={live ? 'Message…' : 'Opening soon'}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            />
+            <button type="submit" disabled={!live || busy || !draft.trim()} aria-label="Send">➤</button>
+          </form>
+        </div>
+        <p className="voice-note">AI can make mistakes. For anything important, book a call.</p>
+      </div>
+    </section>
   );
 }

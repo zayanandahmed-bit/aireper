@@ -7,6 +7,7 @@ import CtaBand from '../components/CtaBand.jsx';
 import { ReviewsGrid, ReviewsSummary } from '../components/Reviews.jsx';
 import LeakCalculator from '../components/LeakCalculator.jsx';
 import AgentDemo from '../components/AgentDemo.jsx';
+import LiveChat from '../components/LiveChat.jsx';
 import VoiceDemo from '../components/VoiceDemo.jsx';
 import AutomationLibrary from '../components/AutomationLibrary.jsx';
 import { useHeroParallax } from '../hooks/useSiteEffects.js';
@@ -125,9 +126,12 @@ export default function Home() {
             <Link to="/contact" className="btn btn-primary">
               Book a Free Strategy Call
             </Link>
-            <Link to="/services" className="btn btn-ghost">
-              Explore our services
-            </Link>
+            <a href="#talk" className="btn btn-ghost" onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('talk')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}>
+              Talk to our AI
+            </a>
           </div>
           <div className="hero-stats">
             <div>
@@ -180,6 +184,8 @@ export default function Home() {
       </section>
 
       <AgentDemo />
+
+      <LiveChat />
 
       <VoiceDemo />
 

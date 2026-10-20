@@ -5,6 +5,10 @@ import Timeline from '../components/Timeline.jsx';
 import Faq from '../components/Faq.jsx';
 import CtaBand from '../components/CtaBand.jsx';
 import { ReviewsGrid, ReviewsSummary } from '../components/Reviews.jsx';
+import LeakCalculator from '../components/LeakCalculator.jsx';
+import AgentDemo from '../components/AgentDemo.jsx';
+import VoiceDemo from '../components/VoiceDemo.jsx';
+import AutomationLibrary from '../components/AutomationLibrary.jsx';
 import { useHeroParallax } from '../hooks/useSiteEffects.js';
 
 const CAPABILITIES = [
@@ -149,6 +153,8 @@ export default function Home() {
 
       <Marquee items={CAPABILITIES} />
 
+      <LeakCalculator />
+
       <section className="section">
         <div className="section-head">
           <p className="eyebrow">What we build</p>
@@ -172,6 +178,12 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <AgentDemo />
+
+      <VoiceDemo />
+
+      <AutomationLibrary />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="section-head">

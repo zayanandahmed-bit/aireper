@@ -1,0 +1,9 @@
+{
+  "name": "daysback-chat",
+  "private": true,
+  "type": "module",
+  "description": "Backend for the DAYSBACK.SI website chatbot. Holds the Anthropic API key; the website never sees it.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0"
+  }
+}

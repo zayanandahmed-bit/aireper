@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Nav from './components/Nav.jsx';
 import Footer from './components/Footer.jsx';
 import Intro from './components/Intro.jsx';
+import ChatWidget from './components/ChatWidget.jsx';
 import Home from './pages/Home.jsx';
 import Services from './pages/Services.jsx';
 import Reviews from './pages/Reviews.jsx';
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Footer />
+      <ChatWidget />
     </>
   );
 }

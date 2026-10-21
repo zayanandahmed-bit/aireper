@@ -7,6 +7,8 @@
 // 2. Emails it to the team through the contact@daysback.si mailbox (Hostinger
 //    SMTP), with Reply-To set to the sender so you can answer straight back.
 //
+// 3. Sends the visitor a branded "we've got your message" confirmation.
+//
 // The message is always saved first; if the email can't be sent (password not
 // set yet, mail server down) the visitor still gets a success and nothing is
 // lost: the row just has emailed = false.
@@ -40,6 +42,51 @@ function limited(ip: string) {
 
 const clean = (v: unknown, max: number) =>
   typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max) : "";
+
+const esc = (v: string) =>
+  v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// Branded confirmation sent to the visitor. Table layout + inline styles so it
+// renders the same in Gmail, Outlook and Apple Mail.
+function confirmation(name: string) {
+  const first = esc(name.split(" ")[0] || "there");
+  const subject = "We've got your message | DaysBack";
+  const text = [
+    `Hi ${name.split(" ")[0] || "there"},`,
+    "",
+    "Thanks for reaching out to DaysBack. We've received your message and one of the team will reply personally within 1 hour.",
+    "",
+    "What happens next:",
+    "1. We read what you need and look at where your business is losing time and money.",
+    "2. We reply with a time for your free 27-minute strategy call.",
+    "3. On the call we map your opportunities. No pressure, no lock-in.",
+    "",
+    "Just reply to this email if you want to add anything.",
+    "",
+    "The DaysBack team",
+    "contact@daysback.si",
+  ].join("\n");
+  const step = (n: string, t: string) =>
+    `<tr><td style="padding:6px 0;vertical-align:top;width:34px"><div style="width:26px;height:26px;border-radius:13px;background:#6c3cff;color:#fff;font:700 13px/26px Arial,sans-serif;text-align:center">${n}</div></td><td style="padding:6px 0;font:15px/1.5 Arial,sans-serif;color:#17123a">${t}</td></tr>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f2ff;padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="height:6px;background:linear-gradient(90deg,#6c3cff,#e0307e 55%,#ff6a1a);font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="padding:32px 36px 8px;font:800 22px Arial,sans-serif;color:#17123a;letter-spacing:.5px">DaysBack</td></tr>
+<tr><td style="padding:8px 36px 0;font:700 24px/1.3 Arial,sans-serif;color:#17123a">Thanks ${first}, we've got your message.</td></tr>
+<tr><td style="padding:12px 36px 0;font:15px/1.6 Arial,sans-serif;color:#5f5b7e">One of the team will reply to you personally <strong style="color:#17123a">within 1 hour</strong>.</td></tr>
+<tr><td style="padding:24px 36px 0;font:700 13px Arial,sans-serif;color:#6c3cff;letter-spacing:1px">WHAT HAPPENS NEXT</td></tr>
+<tr><td style="padding:8px 36px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+${step("1", "We read what you need and look at where your business is losing time and money.")}
+${step("2", "We reply with a time for your free <strong>27-minute strategy call</strong>.")}
+${step("3", "On the call we map your opportunities. No pressure, no lock-in.")}
+</table></td></tr>
+<tr><td style="padding:20px 36px 0;font:15px/1.6 Arial,sans-serif;color:#5f5b7e">Want to add anything? Just reply to this email.</td></tr>
+<tr><td style="padding:28px 36px 32px;font:15px/1.6 Arial,sans-serif;color:#17123a">Speak soon,<br><strong>The DaysBack team</strong></td></tr>
+<tr><td style="padding:18px 36px;background:#f4f2ff;font:12px/1.6 Arial,sans-serif;color:#5f5b7e">DaysBack builds custom AI that finds where your business leaks money and gets your days back.<br><a href="mailto:contact@daysback.si" style="color:#6c3cff;text-decoration:none">contact@daysback.si</a> &nbsp;|&nbsp; <a href="https://daysback.si" style="color:#6c3cff;text-decoration:none">daysback.si</a></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, text, html };
+}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin") ?? "";
@@ -119,6 +166,20 @@ Deno.serve(async (req) => {
       await fetch(url + "/rest/v1/daysback_enquiries?id=eq." + row.id, {
         method: "PATCH", headers, body: JSON.stringify({ emailed: true }),
       });
+      // 3. Confirmation to the visitor. Failure here must not matter.
+      try {
+        const c = confirmation(name);
+        await transport.sendMail({
+          from: `"DaysBack" <${SMTP_USER}>`,
+          to: email,
+          replyTo: SMTP_USER,
+          subject: c.subject,
+          text: c.text,
+          html: c.html,
+        });
+      } catch (err) {
+        console.error("confirmation failed", (err as Error)?.message);
+      }
     } catch (err) {
       console.error("email failed", (err as Error)?.message);
     }

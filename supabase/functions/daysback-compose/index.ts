@@ -4,9 +4,10 @@
 //   POST { pass, action: "send", to, subject, message, from }      -> { ok: true }
 //
 // Lets the team email anyone (not just website leads) in the branded DaysBack
-// template, sent from contact@daysback.si with the team on BCC.
+// template, sent from a chosen team mailbox with the team on BCC.
 //
-// Secrets: COMPOSE_PASS (the tool's passcode), SMTP_PASS, optional NOTIFY_TO.
+// Secrets: COMPOSE_PASS (the tool's passcode), SMTP_PASS (contact@),
+// SMTP_PASS_MAZHER / SMTP_PASS_ZAYAN for other mailboxes, optional NOTIFY_TO, MAILBOXES.
 import nodemailer from "npm:nodemailer@6.9.16";
 import { brandedMessage } from "../_shared/mail.ts";
 
@@ -15,6 +16,12 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
 const NOTIFY_TO = (Deno.env.get("NOTIFY_TO") ?? "contact@daysback.si,mazher@daysback.si")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const SMTP_USER = Deno.env.get("SMTP_USER") ?? "contact@daysback.si";
+// Mailboxes the team can send from. contact@ uses SMTP_PASS; any other uses
+// SMTP_PASS_<NAME>, e.g. SMTP_PASS_MAZHER for mazher@daysback.si.
+const MAILBOXES = (Deno.env.get("MAILBOXES") ?? "contact@daysback.si,mazher@daysback.si,zayan@daysback.si")
+  .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const passFor = (box: string) =>
+  box === SMTP_USER ? Deno.env.get("SMTP_PASS") : Deno.env.get("SMTP_PASS_" + box.split("@")[0].replace(/[^a-z0-9]/g, "_").toUpperCase());
 const SMTP_HOST = Deno.env.get("SMTP_HOST") ?? "smtp.hostinger.com";
 
 // Best-effort brute-force guard: 8 wrong passcodes per IP per 10 minutes.
@@ -70,7 +77,10 @@ Deno.serve(async (req) => {
       { headers },
     );
     const c = await fetch(sbUrl + "/rest/v1/daysback_contacts?select=email,name&order=name.asc&limit=5000", { headers });
-    return json(200, { enquiries: r.ok ? await r.json() : [], contacts: c.ok ? await c.json() : [] });
+    return json(200, {
+      enquiries: r.ok ? await r.json() : [], contacts: c.ok ? await c.json() : [],
+      mailboxes: MAILBOXES.map((m) => ({ email: m, ready: !!passFor(m) })),
+    });
   }
 
   // Bulk add addresses (exported from a mailbox's contacts). Existing ones are kept.
@@ -98,19 +108,22 @@ Deno.serve(async (req) => {
   if (!subject) return json(400, { error: "Add a subject." });
   if (message.length < 2) return json(400, { error: "Write your message first." });
 
-  const pass = Deno.env.get("SMTP_PASS");
-  if (!pass) return json(500, { error: "Email isn't set up." });
+  const box = MAILBOXES.includes(clean(body.box, 160).toLowerCase()) ? clean(body.box, 160).toLowerCase() : SMTP_USER;
+  const pass = passFor(box);
+  if (!pass) return json(400, { error: `${box} isn't connected yet. Add its mailbox password in Supabase secrets.` });
 
-  const { html, text } = brandedMessage(message, from);
+  const { html, text } = brandedMessage(message, from, box);
   try {
     const transport = nodemailer.createTransport({
-      host: SMTP_HOST, port: 465, secure: true, auth: { user: SMTP_USER, pass },
+      host: SMTP_HOST, port: 465, secure: true, auth: { user: box, pass },
     });
     await transport.sendMail({
-      from: `"${from.replace(/"/g, "")} | DaysBack" <${SMTP_USER}>`,
+      from: `"${from.replace(/"/g, "")} | DaysBack" <${box}>`,
       to,
-      bcc: NOTIFY_TO.filter((a) => a.toLowerCase() !== to.toLowerCase()).join(", "),
-      replyTo: SMTP_USER,
+      // Copy to the team, plus the sending mailbox so it lands in its inbox too
+      // (SMTP sends don't appear in Hostinger's Sent folder).
+      bcc: [...new Set([...NOTIFY_TO.map((a) => a.toLowerCase()), box])].filter((a) => a !== to.toLowerCase()).join(", "),
+      replyTo: box,
       subject,
       text,
       html,

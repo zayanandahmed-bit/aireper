@@ -29,14 +29,14 @@ ${inner}
 }
 
 // The branded body used for every message the team sends.
-export function brandedMessage(message: string, from: string) {
+export function brandedMessage(message: string, from: string, box = "contact@daysback.si") {
   const paras = message.split(/\n{2,}/).map((p) =>
     `<p style="margin:0 0 14px;font:15px/1.65 Arial,sans-serif;color:#17123a">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const html = shell(`
 <tr><td style="padding:12px 36px 0">${paras}</td></tr>
 <tr><td style="padding:8px 36px 26px;font:15px/1.6 Arial,sans-serif;color:#17123a">Best regards,<br><strong style="font-size:17px">${esc(from)}</strong><br><span style="color:#5f5b7e;font-size:13px">DaysBack</span></td></tr>
 <tr><td style="padding:0 36px 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:3px;background:linear-gradient(90deg,#6c3cff,#e0307e 55%,#ff6a1a);font-size:0;line-height:0">&nbsp;</td></tr>
-<tr><td style="padding-top:10px;font:13px/1.7 Arial,sans-serif;color:#5f5b7e"><a href="mailto:contact@daysback.si" style="color:#6c3cff;text-decoration:none">contact@daysback.si</a> &nbsp;|&nbsp; <a href="https://daysback.si" style="color:#6c3cff;text-decoration:none">daysback.si</a><br>Ready to get your days back? Reply to book your free 27-minute strategy call.</td></tr></table></td></tr>`);
-  const text = message + `\n\nBest regards,\n${from}\nDaysBack\ncontact@daysback.si | daysback.si\nReady to get your days back? Reply to book your free 27-minute strategy call.`;
+<tr><td style="padding-top:10px;font:13px/1.7 Arial,sans-serif;color:#5f5b7e"><a href="mailto:${esc(box)}" style="color:#6c3cff;text-decoration:none">${esc(box)}</a> &nbsp;|&nbsp; <a href="https://daysback.si" style="color:#6c3cff;text-decoration:none">daysback.si</a><br>Ready to get your days back? Reply to book your free 27-minute strategy call.</td></tr></table></td></tr>`);
+  const text = message + `\n\nBest regards,\n${from}\nDaysBack\n${box} | daysback.si\nReady to get your days back? Reply to book your free 27-minute strategy call.`;
   return { html, text };
 }

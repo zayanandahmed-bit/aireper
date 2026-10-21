@@ -47,7 +47,7 @@ function validMessages(messages: unknown): Anthropic.MessageParam[] | null {
 }
 
 const FALLBACK_REPLY =
-  "Sorry, I can't help with that one. For anything about your business, book a free 20-minute strategy call on our Contact page.";
+  "Sorry, I can't help with that one. For anything about your business, book a free 27-minute strategy call on our Contact page.";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin") ?? "";

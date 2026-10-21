@@ -7,7 +7,7 @@
 // team can use it. The reply goes out from contact@daysback.si, Reply-To the
 // same mailbox, with the rest of the team on BCC so everyone sees what was sent.
 import nodemailer from "npm:nodemailer@6.9.16";
-import { esc, shell, sign } from "../_shared/mail.ts";
+import { brandedMessage, sign } from "../_shared/mail.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
   "https://zayanandahmed-bit.github.io,http://localhost:5182").split(",").map((s) => s.trim());
@@ -64,11 +64,7 @@ Deno.serve(async (req) => {
   const pass = Deno.env.get("SMTP_PASS");
   if (!pass) return json(500, { error: "Email isn't set up." });
 
-  const paras = message.split(/\n{2,}/).map((p) =>
-    `<p style="margin:0 0 14px;font:15px/1.65 Arial,sans-serif;color:#17123a">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
-  const html = shell(`
-<tr><td style="padding:12px 36px 0">${paras}</td></tr>
-<tr><td style="padding:8px 36px 30px;font:15px/1.6 Arial,sans-serif;color:#17123a">Best regards,<br><strong>${esc(from)}</strong><br><span style="color:#5f5b7e">DaysBack</span></td></tr>`);
+  const { html, text } = brandedMessage(message, from);
 
   try {
     const transport = nodemailer.createTransport({
@@ -80,7 +76,7 @@ Deno.serve(async (req) => {
       bcc: NOTIFY_TO.join(", "),
       replyTo: SMTP_USER,
       subject: "Re: Your enquiry | DaysBack",
-      text: message + `\n\nBest regards,\n${from}\nDaysBack | contact@daysback.si`,
+      text,
       html,
     });
   } catch (err) {

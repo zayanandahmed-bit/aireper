@@ -9,3 +9,5 @@ verify_jwt = false
 [functions.daysback-enquiry]
 # Called by the public contact form; the function does its own checks.
 verify_jwt = false
+[functions.daysback-compose]
+verify_jwt = false

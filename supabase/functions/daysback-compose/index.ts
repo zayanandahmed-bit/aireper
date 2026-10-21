@@ -10,7 +10,7 @@
 // SMTP_PASS_MAZHER / SMTP_PASS_ZAYAN for other mailboxes, optional NOTIFY_TO, MAILBOXES.
 import nodemailer from "npm:nodemailer@6.9.16";
 import { brandedMessage } from "../_shared/mail.ts";
-import { readAddresses } from "../_shared/imap.ts";
+import { type FolderState, readAddresses } from "../_shared/imap.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
   "https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
@@ -40,20 +40,23 @@ function same(a: string, b: string) {
   return d === 0;
 }
 
-// Reads the newest messages in a mailbox's Inbox and Sent folders and returns
-// every outside address seen in From / To / Cc, so the tool can suggest them.
+// Reads every message in a mailbox's Inbox and Sent folders (only mail that is
+// new since the last scan) and returns the outside addresses seen in From/To/Cc.
 const IMAP_HOST = Deno.env.get("IMAP_HOST") ?? "imap.hostinger.com";
-const SCAN = 400; // newest messages per folder
 const OWN = /@daysback\.si$/i;
 const JUNK = /(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce)/i;
 
-async function harvest(box: string, pass: string) {
+async function harvest(box: string, pass: string, sbUrl: string, headers: Record<string, string>) {
+  const r = await fetch(sbUrl + "/rest/v1/daysback_mail_sync?select=folder,uidvalidity,last_uid&box=eq." + encodeURIComponent(box), { headers });
+  const state: Record<string, FolderState> = {};
+  for (const row of r.ok ? await r.json() : []) state[row.folder] = { uidvalidity: Number(row.uidvalidity), last_uid: Number(row.last_uid) };
+  const out = await readAddresses(IMAP_HOST, box, pass, state, 45_000);
   const found = new Map<string, string>();
-  for (const { email, name } of await readAddresses(IMAP_HOST, box, pass, SCAN)) {
+  for (const { email, name } of out.addresses) {
     if (OWN.test(email) || JUNK.test(email)) continue;
     if (!found.has(email) || (!found.get(email) && name)) found.set(email, name);
   }
-  return found;
+  return { found, state: out.state, done: out.done };
 }
 
 Deno.serve(async (req) => {
@@ -101,25 +104,29 @@ Deno.serve(async (req) => {
   }
 
   // Pull contacts from every connected mailbox (run each time the tool opens).
+  // The first run reads all mail; later runs only read what is new. If a
+  // mailbox is too big to finish in one call, done=false and the page calls again.
   if (body.action === "sync") {
     const results = await Promise.all(MAILBOXES.map(async (box) => {
       const pass = passFor(box);
-      if (!pass) return { box, ok: false, count: 0, error: "not connected" };
+      if (!pass) return { box, ok: false, count: 0, done: true, error: "not connected" };
       try {
-        const found = await harvest(box, pass);
+        const { found, state, done } = await harvest(box, pass, sbUrl, headers);
         const all = [...found].map(([email, name]) => ({ email, name, source: "mailbox" }));
         const named = all.filter((c) => c.name), unnamed = all.filter((c) => !c.name);
-        const up = (rows: unknown[], how: string) => rows.length ? fetch(sbUrl + "/rest/v1/daysback_contacts?on_conflict=email", {
+        const up = (table: string, rows: unknown[], how: string, key: string) => rows.length ? fetch(sbUrl + `/rest/v1/${table}?on_conflict=${key}`, {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=" + how },
           body: JSON.stringify(rows),
         }) : null;
-        await up(unnamed, "ignore-duplicates");
-        await up(named, "merge-duplicates");
-        return { box, ok: true, count: all.length };
+        await up("daysback_contacts", unnamed, "ignore-duplicates", "email");
+        await up("daysback_contacts", named, "merge-duplicates", "email");
+        // Save the position only after the contacts are stored.
+        await up("daysback_mail_sync", Object.entries(state).map(([folder, st]) => ({ box, folder, ...st, updated_at: new Date().toISOString() })), "merge-duplicates", "box,folder");
+        return { box, ok: true, count: all.length, done };
       } catch (err) {
         console.error("sync failed", box, (err as Error)?.message);
-        return { box, ok: false, count: 0, error: "couldn't read mailbox"};
+        return { box, ok: false, count: 0, done: true, error: "couldn't read mailbox" };
       }
     }));
     return json(200, { results });

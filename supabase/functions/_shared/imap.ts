@@ -78,11 +78,21 @@ function parseAddresses(value: string): Address[] {
   return out;
 }
 
-// Returns From/To/Cc addresses from the newest `scan` messages of Inbox and Sent.
-export async function readAddresses(host: string, user: string, pass: string, scan = 400): Promise<Address[]> {
+export type FolderState = { uidvalidity: number; last_uid: number };
+
+// Reads From/To/Cc addresses from every message in Inbox and Sent that comes
+// after the saved position, in batches, stopping when the time budget runs out.
+// Returns the new positions and whether everything has been read.
+export async function readAddresses(
+  host: string, user: string, pass: string,
+  state: Record<string, FolderState>, budgetMs = 90_000,
+): Promise<{ addresses: Address[]; state: Record<string, FolderState>; done: boolean }> {
+  const started = Date.now();
   const sock = await Deno.connectTls({ hostname: host, port: 993 });
   const c = new Conn(sock);
   const found: Address[] = [];
+  const next: Record<string, FolderState> = {};
+  let done = true;
   try {
     await c.greeting();
     await c.cmd(`LOGIN ${quote(user)} ${quote(pass)}`);
@@ -97,20 +107,28 @@ export async function readAddresses(host: string, user: string, pass: string, sc
     for (const f of [...new Set(folders)]) {
       let sel: string;
       try { sel = await c.cmd(`EXAMINE ${quote(f)}`); } catch { continue; }
-      const exists = Number((sel.match(/\* (\d+) EXISTS/i) || [])[1] || 0);
-      if (!exists) continue;
-      const from = Math.max(1, exists - scan + 1);
-      const res = await c.cmd(`FETCH ${from}:${exists} (BODY.PEEK[HEADER.FIELDS (FROM TO CC)])`);
-      // Unfold headers, then read each address line.
-      const text = res.replace(/\r\n[ \t]+/g, " ");
-      for (const line of text.split("\r\n")) {
-        const m = line.match(/^(from|to|cc):\s*(.*)$/i);
-        if (m) found.push(...parseAddresses(m[2]));
+      const validity = Number((sel.match(/UIDVALIDITY (\d+)/i) || [])[1] || 0);
+      const prev = state[f];
+      let last = prev && prev.uidvalidity === validity ? prev.last_uid : 0;
+      const search = await c.cmd(`UID SEARCH UID ${last + 1}:*`);
+      const uids = ((search.match(/^\* SEARCH([\d ]*)$/im) || [])[1] || "")
+        .trim().split(/\s+/).filter(Boolean).map(Number).filter((u) => u > last).sort((a, b) => a - b);
+      for (let i = 0; i < uids.length; i += 500) {
+        if (Date.now() - started > budgetMs) { done = false; break; }
+        const batch = uids.slice(i, i + 500);
+        const res = await c.cmd(`UID FETCH ${batch[0]}:${batch[batch.length - 1]} (BODY.PEEK[HEADER.FIELDS (FROM TO CC)])`);
+        const text = res.replace(/\r\n[ \t]+/g, " ");
+        for (const line of text.split("\r\n")) {
+          const m = line.match(/^(from|to|cc):\s*(.*)$/i);
+          if (m) found.push(...parseAddresses(m[2]));
+        }
+        last = batch[batch.length - 1];
       }
+      next[f] = { uidvalidity: validity, last_uid: last };
     }
     await c.cmd("LOGOUT").catch(() => "");
   } finally {
     try { sock.close(); } catch { /* already closed */ }
   }
-  return found;
+  return { addresses: found, state: next, done };
 }

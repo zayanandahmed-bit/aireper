@@ -5,3 +5,7 @@ project_id = "ajevxwdgmpaakjkffvmf"
 # The website calls this without a Supabase login; the function does its own
 # checks (allowed origins, message limits, rate limit).
 verify_jwt = false
+
+[functions.daysback-enquiry]
+# Called by the public contact form; the function does its own checks.
+verify_jwt = false

@@ -10,6 +10,7 @@
 // SMTP_PASS_MAZHER / SMTP_PASS_ZAYAN for other mailboxes, optional NOTIFY_TO, MAILBOXES.
 import nodemailer from "npm:nodemailer@6.9.16";
 import { brandedMessage } from "../_shared/mail.ts";
+import { readAddresses } from "../_shared/imap.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
   "https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
@@ -37,6 +38,22 @@ function same(a: string, b: string) {
   let d = 0;
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
+}
+
+// Reads the newest messages in a mailbox's Inbox and Sent folders and returns
+// every outside address seen in From / To / Cc, so the tool can suggest them.
+const IMAP_HOST = Deno.env.get("IMAP_HOST") ?? "imap.hostinger.com";
+const SCAN = 400; // newest messages per folder
+const OWN = /@daysback\.si$/i;
+const JUNK = /(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce)/i;
+
+async function harvest(box: string, pass: string) {
+  const found = new Map<string, string>();
+  for (const { email, name } of await readAddresses(IMAP_HOST, box, pass, SCAN)) {
+    if (OWN.test(email) || JUNK.test(email)) continue;
+    if (!found.has(email) || (!found.get(email) && name)) found.set(email, name);
+  }
+  return found;
 }
 
 Deno.serve(async (req) => {
@@ -81,6 +98,31 @@ Deno.serve(async (req) => {
       enquiries: r.ok ? await r.json() : [], contacts: c.ok ? await c.json() : [],
       mailboxes: MAILBOXES.map((m) => ({ email: m, ready: !!passFor(m) })),
     });
+  }
+
+  // Pull contacts from every connected mailbox (run each time the tool opens).
+  if (body.action === "sync") {
+    const results = await Promise.all(MAILBOXES.map(async (box) => {
+      const pass = passFor(box);
+      if (!pass) return { box, ok: false, count: 0, error: "not connected" };
+      try {
+        const found = await harvest(box, pass);
+        const all = [...found].map(([email, name]) => ({ email, name, source: "mailbox" }));
+        const named = all.filter((c) => c.name), unnamed = all.filter((c) => !c.name);
+        const up = (rows: unknown[], how: string) => rows.length ? fetch(sbUrl + "/rest/v1/daysback_contacts?on_conflict=email", {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=" + how },
+          body: JSON.stringify(rows),
+        }) : null;
+        await up(unnamed, "ignore-duplicates");
+        await up(named, "merge-duplicates");
+        return { box, ok: true, count: all.length };
+      } catch (err) {
+        console.error("sync failed", box, (err as Error)?.message);
+        return { box, ok: false, count: 0, error: "couldn't read mailbox"};
+      }
+    }));
+    return json(200, { results });
   }
 
   // Bulk add addresses (exported from a mailbox's contacts). Existing ones are kept.

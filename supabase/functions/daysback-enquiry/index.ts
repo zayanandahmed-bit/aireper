@@ -88,6 +88,49 @@ ${step("3", "On the call we map your opportunities. No pressure, no lock-in.")}
   return { subject, text, html };
 }
 
+// One-click reply: opens a new email to the visitor with our professional
+// reply already written, ready to edit and send.
+function replyLink(name: string, email: string) {
+  const first = name.split(" ")[0] || "there";
+  const body = [
+    `Hi ${first},`,
+    "",
+    "Thanks for getting in touch with DaysBack.",
+    "",
+    "[Answer / what we can do for them]",
+    "",
+    "The quickest next step is a free 27-minute strategy call, where we map where your business is losing time and money and what we'd build to fix it. Here are a few times that work for us:",
+    "",
+    "- [Day, time]",
+    "- [Day, time]",
+    "- [Day, time]",
+    "",
+    "Reply with whichever suits you and I'll send the invite.",
+    "",
+    "Best regards,",
+    "[Your name]",
+    "DaysBack | contact@daysback.si | daysback.si",
+  ].join("\n");
+  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Re: Your enquiry | DaysBack")}&body=${encodeURIComponent(body)}`;
+}
+
+function teamHtml(d: Record<string, string>, reply: string) {
+  const row = (k: string, v: string) =>
+    `<tr><td style="padding:6px 0;width:90px;font:700 12px Arial,sans-serif;color:#6c3cff;letter-spacing:.5px;text-transform:uppercase">${k}</td><td style="padding:6px 0;font:15px Arial,sans-serif;color:#17123a">${esc(v || "-")}</td></tr>`;
+  return `<!doctype html><html><body style="margin:0;background:#f4f2ff;padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:16px;overflow:hidden">
+<tr><td style="height:6px;background:linear-gradient(90deg,#6c3cff,#e0307e 55%,#ff6a1a);font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="padding:28px 32px 4px;font:700 20px Arial,sans-serif;color:#17123a">New enquiry</td></tr>
+<tr><td style="padding:4px 32px 0;font:14px Arial,sans-serif;color:#5f5b7e">Promised reply time: within 1 hour.</td></tr>
+<tr><td style="padding:16px 32px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+${row("Name", d.name)}${row("Email", d.email)}${row("Company", d.company)}${row("Wants", d.interest)}${row("Page", d.page)}
+</table></td></tr>
+<tr><td style="padding:24px 32px 32px"><a href="${reply}" style="display:inline-block;background:#6c3cff;color:#fff;text-decoration:none;font:700 15px Arial,sans-serif;padding:13px 22px;border-radius:10px">Reply with template</a>
+<div style="padding-top:10px;font:12px Arial,sans-serif;color:#5f5b7e">Opens a new email to ${esc(d.email)} with our professional reply ready to edit.</div></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin") ?? "";
   const cors: Record<string, string> = {
@@ -162,6 +205,7 @@ Deno.serve(async (req) => {
         replyTo: `"${name.replace(/"/g, "")}" <${email}>`,
         subject: `New enquiry: ${name}${company ? " (" + company + ")" : ""}`,
         text: lines.join("\n"),
+        html: teamHtml({ name, email, company, interest, page }, replyLink(name, email)),
       });
       await fetch(url + "/rest/v1/daysback_enquiries?id=eq." + row.id, {
         method: "PATCH", headers, body: JSON.stringify({ emailed: true }),

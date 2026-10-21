@@ -69,14 +69,31 @@ Deno.serve(async (req) => {
       sbUrl + "/rest/v1/daysback_enquiries?select=name,email,company,interest,created_at&order=created_at.desc&limit=30",
       { headers },
     );
-    return json(200, { enquiries: r.ok ? await r.json() : [] });
+    const c = await fetch(sbUrl + "/rest/v1/daysback_contacts?select=email,name&order=name.asc&limit=5000", { headers });
+    return json(200, { enquiries: r.ok ? await r.json() : [], contacts: c.ok ? await c.json() : [] });
+  }
+
+  // Bulk add addresses (exported from a mailbox's contacts). Existing ones are kept.
+  if (body.action === "import") {
+    const rows = (Array.isArray(body.contacts) ? body.contacts : []).slice(0, 5000).map((c: Record<string, unknown>) => ({
+      email: clean(c.email, 160).toLowerCase(), name: clean(c.name, 100), source: "import",
+    })).filter((c) => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(c.email));
+    if (!rows.length) return json(400, { error: "No email addresses found in that file." });
+    const r = await fetch(sbUrl + "/rest/v1/daysback_contacts?on_conflict=email", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates" },
+      body: JSON.stringify(rows),
+    });
+    if (!r.ok) { console.error("import failed", r.status, await r.text()); return json(502, { error: "Couldn't import." }); }
+    return json(200, { ok: true, count: rows.length });
   }
 
   if (body.action !== "send") return json(400, { error: "Bad request" });
   const to = clean(body.to, 160);
   const subject = clean(body.subject, 150).replace(/\n/g, " ");
   const message = clean(body.message, 8000);
-  const from = clean(body.from, 60) || "The DaysBack team";
+  const SENDERS = ["Mazher", "Zayan"];
+  const from = SENDERS.includes(clean(body.from, 60)) ? clean(body.from, 60) : "The DaysBack team";
   if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(to)) return json(400, { error: "Add a valid email to send to." });
   if (!subject) return json(400, { error: "Add a subject." });
   if (message.length < 2) return json(400, { error: "Write your message first." });
@@ -102,5 +119,11 @@ Deno.serve(async (req) => {
     console.error("send failed", (err as Error)?.message);
     return json(502, { error: "Couldn't send. Check the address and try again." });
   }
+  // Remember who we've written to, so they show up in the address book.
+  await fetch(sbUrl + "/rest/v1/daysback_contacts?on_conflict=email", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates" },
+    body: JSON.stringify([{ email: to.toLowerCase(), name: "", source: "sent" }]),
+  }).catch(() => {});
   return json(200, { ok: true });
 });

@@ -177,6 +177,72 @@ Deno.serve(async (req) => {
     return json(r.ok ? 200 : 502, r.ok ? await r.json() : { error: "Couldn't load stats." });
   }
 
+  // Instagram: the content calendar, the team's status/metrics and notes (all in
+  // daysback_hq), and short-lived links to the post files in private storage.
+  const hqGet = async (keys: string[]) => {
+    const r = await fetch(sbUrl + `/rest/v1/daysback_hq?key=in.(${keys.join(",")})&select=key,value`, { headers });
+    const rows = r.ok ? await r.json() : [];
+    return Object.fromEntries(rows.map((x: { key: string; value: unknown }) => [x.key, x.value])) as Record<string, unknown>;
+  };
+  const hqPut = (k: string, value: unknown) => fetch(sbUrl + "/rest/v1/daysback_hq?on_conflict=key", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify([{ key: k, value, updated_at: new Date().toISOString() }]),
+  });
+
+  if (body.action === "ig_get") {
+    const v = await hqGet(["ig_plan", "ig_status", "ig_notes", "ig_library", "ig_growth"]);
+    return json(200, { plan: v.ig_plan ?? [], status: v.ig_status ?? {}, notes: v.ig_notes ?? [], library: v.ig_library ?? [], growth: v.ig_growth ?? "" });
+  }
+  if (body.action === "ig_update") {
+    const slug = clean(body.slug, 80);
+    if (!slug) return json(400, { error: "Missing post." });
+    const all = ((await hqGet(["ig_status"])).ig_status ?? {}) as Record<string, Record<string, unknown>>;
+    const cur = all[slug] ?? {};
+    if (body.status !== undefined) {
+      const st = clean(body.status, 20);
+      if (!["planned", "ready", "scheduled", "posted", "check-rates", "needs-data", "skip"].includes(st)) return json(400, { error: "Bad status." });
+      cur.status = st;
+      if (st === "posted") cur.posted_at = new Date().toISOString();
+    }
+    if (body.metrics && typeof body.metrics === "object") {
+      const m: Record<string, number> = {};
+      for (const k of ["views", "reach", "likes", "comments", "saves", "shares", "follows"]) {
+        const n = Number((body.metrics as Record<string, unknown>)[k]);
+        if (Number.isFinite(n) && n >= 0) m[k] = Math.round(n);
+      }
+      cur.metrics = m;
+    }
+    cur.updated_at = new Date().toISOString();
+    all[slug] = cur;
+    const r = await hqPut("ig_status", all);
+    return json(r.ok ? 200 : 502, r.ok ? { ok: true, status: cur } : { error: "Couldn't save." });
+  }
+  if (body.action === "ig_note") {
+    const v = await hqGet(["ig_notes"]);
+    const notes = Array.isArray(v.ig_notes) ? v.ig_notes : [];
+    if (body.remove !== undefined) notes.splice(Number(body.remove) || 0, 1);
+    else {
+      const text = clean(body.text, 1000);
+      if (!text) return json(400, { error: "Write the update first." });
+      const by = ["Zayan", "Mazher"].includes(clean(body.by, 20)) ? clean(body.by, 20) : "Team";
+      notes.unshift({ text, by, at: new Date().toISOString() });
+    }
+    const r = await hqPut("ig_notes", notes.slice(0, 200));
+    return json(r.ok ? 200 : 502, r.ok ? { ok: true, notes } : { error: "Couldn't save." });
+  }
+  if (body.action === "ig_assets") {
+    const paths = (Array.isArray(body.paths) ? body.paths : []).slice(0, 40).map((p: unknown) => clean(p, 200))
+      .filter((p: string) => /^[a-z0-9][a-z0-9/_.-]*$/i.test(p) && !p.includes(".."));
+    if (!paths.length) return json(400, { error: "No files." });
+    const r = await fetch(sbUrl + "/storage/v1/object/sign/daysback-ig", {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 3600, paths }),
+    });
+    if (!r.ok) { console.error("sign failed", r.status, await r.text()); return json(502, { error: "Couldn't load the files." }); }
+    const out = await r.json();
+    return json(200, { files: out.map((x: { path: string; signedURL: string | null }) => ({ path: x.path, url: x.signedURL ? sbUrl + "/storage/v1" + x.signedURL : null })) });
+  }
+
   // Bulk add addresses (exported from a mailbox's contacts). Existing ones are kept.
   if (body.action === "import") {
     const rows = (Array.isArray(body.contacts) ? body.contacts : []).slice(0, 5000).map((c: Record<string, unknown>) => ({

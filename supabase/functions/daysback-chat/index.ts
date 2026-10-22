@@ -12,7 +12,7 @@ import Anthropic from "npm:@anthropic-ai/sdk@0.135.0";
 import { SYSTEM_PROMPT } from "./prompt.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
-  "https://daysback.si,https://www.daysback.si,https://zayanandahmed-bit.github.io,http://localhost:5180").split(",").map((s) => s.trim());
+  "https://daysback.si,https://www.daysback.si,http://daysback.si,http://www.daysback.si,https://zayanandahmed-bit.github.io,http://localhost:5180").split(",").map((s) => s.trim());
 
 const MAX_MESSAGES = 24;   // turns per conversation (the site drops older ones)
 const MAX_CHARS = 1500;    // per visitor message

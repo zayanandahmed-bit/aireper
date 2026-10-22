@@ -1,7 +1,7 @@
 // Records one page view from daysback.si. Cookie-free and no IP stored; see
 // supabase/sql/daysback_pageviews.sql.
 //
-//   POST { path, referrer }  ->  204
+//   POST { kind: "view"|"leave", path, referrer, tz, campaign, seconds }  ->  204
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
   "https://daysback.si,https://www.daysback.si,http://localhost:5182").split(",").map((s) => s.trim());
 const BOT = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp/i;
@@ -27,14 +27,23 @@ Deno.serve(async (req) => {
   const ua = req.headers.get("user-agent") ?? "";
   if (BOT.test(ua)) return new Response(null, { status: 204, headers: cors });
 
-  const body = await req.json().catch(() => ({}));
+  // sendBeacon posts text/plain, so read the text and parse it ourselves.
+  const body = await req.text().then((t) => JSON.parse(t)).catch(() => ({}));
   const path = clean(body.path, 200).split("?")[0].replace(/(.)\/$/, "$1") || "/";
   let referrer = "";
   try {
     const r = new URL(clean(body.referrer, 500));
     if (!/(^|\.)daysback\.si$/.test(r.hostname)) referrer = r.hostname.replace(/^www\./, "");
   } catch { /* none or invalid */ }
-  const device = /Mobi|Android|iPhone/i.test(ua) ? "mobile" : /iPad|Tablet/i.test(ua) ? "tablet" : "desktop";
+  const device = /iPad|Tablet/i.test(ua) ? "tablet" : /Mobi|Android|iPhone/i.test(ua) ? "mobile" : "desktop";
+  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /SamsungBrowser/.test(ua) ? "Samsung Internet"
+    : /Firefox\//.test(ua) ? "Firefox" : /Chrome\/|CriOS/.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Other";
+  const os = /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X|Macintosh/.test(ua) ? "macOS"
+    : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "Other";
+  const kind = body.kind === "leave" ? "leave" : "view";
+  const seconds = kind === "leave" ? Math.max(0, Math.min(7200, Math.round(Number(body.seconds) || 0))) : null;
+  const tz = clean(body.tz, 60).replace(/[^A-Za-z0-9_\/+-]/g, "");
+  const campaign = clean(body.campaign, 80);
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
   const day = new Date().toISOString().slice(0, 10);
   const visitor_hash = await hash(`${Deno.env.get("REPLY_SECRET") ?? ""}|${ip}|${ua}|${day}`);
@@ -43,7 +52,7 @@ Deno.serve(async (req) => {
   await fetch(Deno.env.get("SUPABASE_URL")! + "/rest/v1/daysback_pageviews", {
     method: "POST",
     headers: { apikey: key, Authorization: "Bearer " + key, "Content-Type": "application/json" },
-    body: JSON.stringify([{ path, referrer, device, visitor_hash }]),
+    body: JSON.stringify([{ kind, path, referrer: kind === "view" ? referrer : "", device, browser, os, tz, campaign, seconds, visitor_hash }]),
   }).catch(() => {});
   return new Response(null, { status: 204, headers: cors });
 });

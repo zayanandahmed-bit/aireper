@@ -9,11 +9,11 @@
 // Secrets: COMPOSE_PASS (the tool's passcode), SMTP_PASS (contact@),
 // SMTP_PASS_MAZHER / SMTP_PASS_ZAYAN for other mailboxes, optional NOTIFY_TO, MAILBOXES.
 import nodemailer from "npm:nodemailer@6.9.16";
-import { brandedMessage } from "../_shared/mail.ts";
+import { brandedMessage, SITE, sign } from "../_shared/mail.ts";
 import { type FolderState, readAddresses } from "../_shared/imap.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
-  "https://daysback.si,https://www.daysback.si,http://daysback.si,http://www.daysback.si,https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
+  "https://hq.daysback.si,https://daysback.si,https://www.daysback.si,http://daysback.si,http://www.daysback.si,https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
 const NOTIFY_TO = (Deno.env.get("NOTIFY_TO") ?? "contact@daysback.si,mazher@daysback.si")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const SMTP_USER = Deno.env.get("SMTP_USER") ?? "contact@daysback.si";
@@ -130,6 +130,32 @@ Deno.serve(async (req) => {
       }
     }));
     return json(200, { results });
+  }
+
+  // HQ home: shared settings (the link tiles), same for everyone on the team.
+  if (body.action === "hq_get") {
+    const r = await fetch(sbUrl + "/rest/v1/daysback_hq?key=eq.tiles&select=value", { headers });
+    const [row] = r.ok ? await r.json() : [];
+    return json(200, { tiles: row?.value ?? null });
+  }
+  if (body.action === "hq_set") {
+    const tiles = Array.isArray(body.tiles) ? body.tiles.slice(0, 200).map((t: Record<string, unknown>) => ({
+      name: clean(t.name, 60), url: clean(t.url, 500), group: clean(t.group, 40), note: clean(t.note, 80),
+    })).filter((t) => t.name && /^https?:\/\//.test(t.url)) : [];
+    const r = await fetch(sbUrl + "/rest/v1/daysback_hq?on_conflict=key", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify([{ key: "tiles", value: tiles, updated_at: new Date().toISOString() }]),
+    });
+    return json(r.ok ? 200 : 502, r.ok ? { ok: true } : { error: "Couldn't save." });
+  }
+
+  // Latest website enquiries, each with its signed reply link.
+  if (body.action === "recent") {
+    const r = await fetch(sbUrl + "/rest/v1/daysback_enquiries?select=id,created_at,name,email,company,interest&order=created_at.desc&limit=8", { headers });
+    const rows = r.ok ? await r.json() : [];
+    for (const row of rows) row.reply = `${SITE}/reply?id=${row.id}&t=${await sign(row.id)}`;
+    return json(200, { enquiries: rows });
   }
 
   // Visitor stats for the Stats tab.

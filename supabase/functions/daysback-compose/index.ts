@@ -150,6 +150,16 @@ Deno.serve(async (req) => {
     return json(r.ok ? 200 : 502, r.ok ? { ok: true } : { error: "Couldn't save." });
   }
 
+  // Case studies (client or internal version), kept private in daysback_hq.
+  if (body.action === "case_studies") {
+    const k = body.version === "internal" ? "cs_internal" : "cs_client";
+    const r = await fetch(sbUrl + `/rest/v1/daysback_hq?key=in.(${k},cs_updated)&select=key,value`, { headers });
+    const rows = r.ok ? await r.json() : [];
+    const html = rows.find((x: { key: string }) => x.key === k)?.value;
+    if (!html) return json(404, { error: "Case studies haven't been published to HQ yet." });
+    return json(200, { html, updated: rows.find((x: { key: string }) => x.key === "cs_updated")?.value ?? null });
+  }
+
   // Latest website enquiries, each with its signed reply link.
   if (body.action === "recent") {
     const r = await fetch(sbUrl + "/rest/v1/daysback_enquiries?select=id,created_at,name,email,company,interest&order=created_at.desc&limit=8", { headers });

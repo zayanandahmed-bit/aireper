@@ -13,7 +13,7 @@ import { brandedMessage } from "../_shared/mail.ts";
 import { type FolderState, readAddresses } from "../_shared/imap.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
-  "https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
+  "https://daysback.si,https://www.daysback.si,https://zayanandahmed-bit.github.io,http://localhost:5183").split(",").map((s) => s.trim());
 const NOTIFY_TO = (Deno.env.get("NOTIFY_TO") ?? "contact@daysback.si,mazher@daysback.si")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const SMTP_USER = Deno.env.get("SMTP_USER") ?? "contact@daysback.si";

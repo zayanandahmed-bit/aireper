@@ -1,6 +1,6 @@
 // Bits shared by the enquiry and reply functions.
 
-export const SITE = "https://zayanandahmed-bit.github.io/daysback-3d";
+export const SITE = "https://daysback.si";
 
 export const esc = (v: string) =>
   v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

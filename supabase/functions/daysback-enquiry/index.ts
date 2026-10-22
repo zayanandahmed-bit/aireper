@@ -131,6 +131,8 @@ Deno.serve(async (req) => {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   if (limited(ip)) return json(429, { error: "Too many messages. Please email contact@daysback.si instead." });
 
+  // Nothing legitimate is anywhere near this big.
+  if (Number(req.headers.get("content-length") ?? 0) > 10_000) return json(413, { error: "Too large" });
   const body = await req.json().catch(() => null);
   if (!body) return json(400, { error: "Bad request" });
 
@@ -189,8 +191,15 @@ Deno.serve(async (req) => {
       await fetch(url + "/rest/v1/daysback_enquiries?id=eq." + row.id, {
         method: "PATCH", headers, body: JSON.stringify({ emailed: true }),
       });
-      // 3. Confirmation to the visitor. Failure here must not matter.
+      // 3. Confirmation to the visitor. Failure here must not matter. Skipped
+      // when this address already got two today, so the form can't be used to
+      // flood someone else's inbox with our emails.
       try {
+        const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const prev = await fetch(url + "/rest/v1/daysback_enquiries?select=id&email=eq." + encodeURIComponent(email) +
+          "&created_at=gte." + encodeURIComponent(since), { headers: { ...headers, Prefer: "count=exact", Range: "0-0" } });
+        const total = Number((prev.headers.get("content-range") ?? "").split("/")[1] ?? 0);
+        if (total > 2) throw new Error("confirmation skipped: already sent to this address today");
         const c = confirmation(name);
         await transport.sendMail({
           from: `"DaysBack" <${SMTP_USER}>`,

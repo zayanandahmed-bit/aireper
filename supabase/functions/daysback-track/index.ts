@@ -4,6 +4,16 @@
 //   POST { kind: "view"|"leave", path, referrer, tz, campaign, seconds }  ->  204
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
   "https://daysback.si,https://www.daysback.si,http://localhost:5182").split(",").map((s) => s.trim());
+const WINDOW_MS = 10 * 60 * 1000;
+const PER_WINDOW = 120;
+const hits = new Map<string, number[]>();
+function limited(ip: string) {
+  const now = Date.now();
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
+  recent.push(now);
+  hits.set(ip, recent);
+  return recent.length > PER_WINDOW;
+}
 const BOT = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp/i;
 
 const clean = (v: unknown, max: number) =>
@@ -27,9 +37,16 @@ Deno.serve(async (req) => {
   const ua = req.headers.get("user-agent") ?? "";
   if (BOT.test(ua)) return new Response(null, { status: 204, headers: cors });
 
+  // Best-effort per-IP limit so a script can't flood the stats table.
+  const ipKey = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  if (limited(ipKey)) return new Response(null, { status: 204, headers: cors });
+
   // sendBeacon posts text/plain, so read the text and parse it ourselves.
-  const body = await req.text().then((t) => JSON.parse(t)).catch(() => ({}));
+  const raw = await req.text().catch(() => "");
+  if (raw.length > 2000) return new Response(null, { status: 204, headers: cors });
+  const body = (() => { try { return JSON.parse(raw); } catch { return {}; } })();
   const path = clean(body.path, 200).split("?")[0].replace(/(.)\/$/, "$1") || "/";
+  if (!path.startsWith("/")) return new Response(null, { status: 204, headers: cors });
   let referrer = "";
   try {
     const r = new URL(clean(body.referrer, 500));

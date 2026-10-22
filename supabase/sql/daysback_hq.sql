@@ -40,7 +40,8 @@ returns json language sql stable security definer set search_path = public as $$
       'enquiries', (select count(*) from daysback_enquiries where created_at > now() - make_interval(days => days)),
       'avg_seconds', (select coalesce(round(avg(s)), 0) from lv),
       'bounce', (select coalesce(round(100.0 * count(*) filter (where n = 1) / nullif(count(*), 0)), 0) from sess),
-      'pages_per_visit', (select coalesce(round(avg(n)::numeric, 1), 0) from sess)),
+      'pages_per_visit', (select coalesce(round(avg(n)::numeric, 1), 0) from sess),
+      'converted', (select count(distinct visitor_hash || created_at::date) from cv where path like '/thanks%')),
     'prev', json_build_object(
       'visitors', (select count(*) from psess),
       'views', (select count(*) from pv),
@@ -48,7 +49,8 @@ returns json language sql stable security definer set search_path = public as $$
                                                                and created_at > now() - make_interval(days => days * 2)),
       'avg_seconds', (select coalesce(round(avg(s)), 0) from plv),
       'bounce', (select coalesce(round(100.0 * count(*) filter (where n = 1) / nullif(count(*), 0)), 0) from psess),
-      'pages_per_visit', (select coalesce(round(avg(n)::numeric, 1), 0) from psess)),
+      'pages_per_visit', (select coalesce(round(avg(n)::numeric, 1), 0) from psess),
+      'converted', (select count(distinct visitor_hash || created_at::date) from pv where path like '/thanks%')),
     'by_day', (select coalesce(json_agg(x order by x.day), '[]') from (
         select created_at::date as day, count(*) as views, count(distinct visitor_hash) as visitors from cv group by 1) x),
     'by_hour', (select coalesce(json_agg(x order by x.hour), '[]') from (
@@ -75,7 +77,7 @@ returns json language sql stable security definer set search_path = public as $$
         json_build_object('step', 'Visited the site', 'n', (select count(*) from sess)),
         json_build_object('step', 'Viewed Services', 'n', (select count(distinct visitor_hash || created_at::date) from cv where path like '/services%')),
         json_build_object('step', 'Opened Contact', 'n', (select count(distinct visitor_hash || created_at::date) from cv where path like '/contact%')),
-        json_build_object('step', 'Sent an enquiry', 'n', (select count(*) from daysback_enquiries where created_at > now() - make_interval(days => days))))
+        json_build_object('step', 'Sent an enquiry', 'n', (select count(distinct visitor_hash || created_at::date) from cv where path like '/thanks%')))
   );
 $$;
 revoke execute on function daysback_stats(int) from public, anon, authenticated;

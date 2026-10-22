@@ -86,8 +86,10 @@ Deno.serve(async (req) => {
       const write = (s: string) => controller.enqueue(enc.encode(s));
       let wrote = false;
       try {
-        const reply = client.beta.messages.stream({
-          model: "claude-opus-5-5",
+        const reply = client.messages.stream({
+          // Haiku: fast and the cheapest current model, plenty for answering
+          // questions about our services and booking calls.
+          model: "claude-haiku-5-5",
           max_tokens: MAX_TOKENS,
           // Chat replies are short and simple; low effort keeps them fast and cheap.
           output_config: { effort: "low" },
@@ -95,10 +97,6 @@ Deno.serve(async (req) => {
           // conversations read it at a fraction of the price.
           system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
           messages,
-          // If the model declines a message, the API retries it on Anthropic's
-          // recommended fallback model instead of returning nothing.
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
         });
         for await (const event of reply) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {

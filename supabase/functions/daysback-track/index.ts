@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   if (BOT.test(ua)) return new Response(null, { status: 204, headers: cors });
 
   const body = await req.json().catch(() => ({}));
-  const path = clean(body.path, 200).split("?")[0] || "/";
+  const path = clean(body.path, 200).split("?")[0].replace(/(.)\/$/, "$1") || "/";
   let referrer = "";
   try {
     const r = new URL(clean(body.referrer, 500));

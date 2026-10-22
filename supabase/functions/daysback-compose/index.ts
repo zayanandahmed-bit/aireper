@@ -132,6 +132,15 @@ Deno.serve(async (req) => {
     return json(200, { results });
   }
 
+  // Visitor stats for the Stats tab.
+  if (body.action === "stats") {
+    const days = Math.min(365, Math.max(1, Number(body.days) || 30));
+    const r = await fetch(sbUrl + "/rest/v1/rpc/daysback_stats", {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ days }),
+    });
+    return json(r.ok ? 200 : 502, r.ok ? await r.json() : { error: "Couldn't load stats." });
+  }
+
   // Bulk add addresses (exported from a mailbox's contacts). Existing ones are kept.
   if (body.action === "import") {
     const rows = (Array.isArray(body.contacts) ? body.contacts : []).slice(0, 5000).map((c: Record<string, unknown>) => ({

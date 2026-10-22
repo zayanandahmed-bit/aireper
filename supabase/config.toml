@@ -11,3 +11,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.daysback-compose]
 verify_jwt = false
+[functions.daysback-track]
+verify_jwt = false

@@ -14,7 +14,7 @@ function limited(ip: string) {
   hits.set(ip, recent);
   return recent.length > PER_WINDOW;
 }
-const BOT = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp/i;
+const BOT = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp|inspectiontool|google-|gtmetrix|pingdom|pagespeed|chrome-lighthouse|semrush|ahrefs|bytespider|perplexity/i;
 
 const clean = (v: unknown, max: number) =>
   typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max) : "";

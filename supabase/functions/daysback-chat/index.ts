@@ -18,6 +18,11 @@ const MAX_MESSAGES = 24;   // turns per conversation (the site drops older ones)
 const MAX_CHARS = 1500;    // per visitor message
 // A cost cap, not a quality setting: replies are told to be a few sentences.
 const MAX_TOKENS = 2000;
+// Hard cap on visitor messages per day (UK date) across the whole site,
+// shared by every edge instance via the database. Owner's limit: 200/day.
+const DAILY_CAP = Number(Deno.env.get("CHAT_DAILY_CAP") ?? 200);
+const CAP_REPLY =
+  "Our assistant has had a busy day and is resting until tomorrow. Book a free 27-minute strategy call on our Contact page (https://daysback.si/contact) or email contact@daysback.si and a real person will reply within 1 hour.";
 
 // Best-effort per-IP limit. Edge instances don't share memory, so this slows a
 // single abuser rather than being a hard quota; the monthly spend limit in the
@@ -77,6 +82,18 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => null);
   const messages = validMessages(body?.messages);
   if (!messages) return json(400, { error: "Bad request" });
+
+  // Count this message against today's site-wide cap before spending anything.
+  const sbUrl = Deno.env.get("SUPABASE_URL")!;
+  const sbKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const taken = await fetch(sbUrl + "/rest/v1/rpc/daysback_chat_take", {
+    method: "POST",
+    headers: { apikey: sbKey, Authorization: "Bearer " + sbKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ cap: DAILY_CAP }),
+  }).then((r) => (r.ok ? r.json() : 0)).catch(() => 0);
+  if (Number(taken) > DAILY_CAP) {
+    return new Response(CAP_REPLY, { headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" } });
+  }
 
   const client = new Anthropic({ apiKey });
   const enc = new TextEncoder();

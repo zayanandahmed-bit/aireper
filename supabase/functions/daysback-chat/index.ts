@@ -16,27 +16,13 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ??
 
 const MAX_MESSAGES = 24;   // turns per conversation (the site drops older ones)
 const MAX_CHARS = 1500;    // per visitor message
-// A cost cap, not a quality setting: replies are told to be a few sentences.
-const MAX_TOKENS = 2000;
+// A cost cap: replies are told to stay under ~50 words, this is the hard ceiling.
+const MAX_TOKENS = 300;
 // Hard cap on visitor messages per day (UK date) across the whole site,
 // shared by every edge instance via the database. Owner's limit: 200/day.
 const DAILY_CAP = Number(Deno.env.get("CHAT_DAILY_CAP") ?? 200);
 const CAP_REPLY =
   "Our assistant has had a busy day and is resting until tomorrow. Book a free 27-minute strategy call on our Contact page (https://daysback.si/contact) or email contact@daysback.si and a real person will reply within 1 hour.";
-
-// Best-effort per-IP limit. Edge instances don't share memory, so this slows a
-// single abuser rather than being a hard quota; the monthly spend limit in the
-// Anthropic Console is the real backstop.
-const WINDOW_MS = 10 * 60 * 1000;
-const PER_WINDOW = 30;
-const hits = new Map<string, number[]>();
-function limited(ip: string) {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > PER_WINDOW;
-}
 
 function validMessages(messages: unknown): Anthropic.MessageParam[] | null {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) return null;
@@ -75,9 +61,6 @@ Deno.serve(async (req) => {
 
   if (!ALLOWED_ORIGINS.includes(origin)) return json(403, { error: "Origin not allowed" });
   if (!apiKey) return json(503, { error: "Chat isn't set up yet" });
-
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  if (limited(ip)) return json(429, { error: "You've sent a lot of messages. Please try again in a few minutes." });
 
   const body = await req.json().catch(() => null);
   const messages = validMessages(body?.messages);
